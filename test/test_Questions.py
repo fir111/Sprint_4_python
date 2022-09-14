@@ -1,7 +1,7 @@
 import pytest
-from selenium import webdriver
-from POM.Page_Object_Index import FaqQuestions, Cookies
 import allure
+from selenium import webdriver
+from pages.index import FaqQuestions, Cookies, IndexPage
 
 questions = [
     {'question': 'Сколько это стоит? И как оплатить?',
@@ -28,87 +28,61 @@ questions = [
     {'question': 'Я жизу за МКАДом, привезёте?',
      'answer': 'Да, обязательно. Всем самокатов! И Москве, и Московской области.'}
 ]
-items = []
-
-base_url = 'https://qa-scooter.praktikum-services.ru/'
 
 
-@allure.step('Инициализируем драйвер')
-def init_driver():
-    firefox_option = webdriver.FirefoxOptions()
-    firefox_option.add_argument("-headless")
-    wd = webdriver.Firefox(options=firefox_option)
-    wd.implicitly_wait(1)
-    return wd
-
-
-@allure.step('Открываем страницу {url}')
-def open_url(driver, url):
-    driver.get(url)
-
-
-@allure.step('Соглашаемся с настройками cookies')
-def consent_cookies(driver):
-    cookies = Cookies(driver)
-    cookies.get_cookies()
-
-
-@allure.step('Скроллим до списка FAQ')
-def scroll_to_faq(driver):
-    faq = FaqQuestions(driver)
-    faq.scroll_to_header()
-    return faq
-
-
-@allure.step('Собираем данные по списку FAQ')
-def get_faq(faq):
-    return faq.get_faq()
-
-
-@allure.step('Закрываем браузер')
-def quit_driver(driver):
-    driver.close()
-    driver.quit()
-
-
-@allure.step('Подготавливаем данные для тестирования')
-@allure.title('Подготовка данных')
-@pytest.fixture(scope='module')
-def test_execution():
-    global items
-
-    driver = init_driver()
-    open_url(driver, base_url)
-    consent_cookies(driver)
-    faq = scroll_to_faq(driver)
-    items = get_faq(faq)
-    quit_driver(driver)
-
-
-def pytest_generate_tests(metafunc):
-
-    if metafunc.definition.name == "test_questions":
-        return metafunc.parametrize('expected', questions)
-    else:
-        return metafunc
+@allure.title('Параметризуем тест ожидаемыми значениями')
+@pytest.fixture(params=questions)
+def expected(request):
+    return request.param
 
 
 @allure.suite('Тестирование FAQ')
-@allure.testcase('TestCase-112')
-@allure.title('Проверка вопроса FAQ')
-@allure.description('Проверяем вопросы и ответы на соответствие эталонным')
-@allure.step('Сравниваем эталонные и актуальные данные')
-@pytest.mark.usefixtures('test_execution')
-def test_questions(expected):
+@allure.title('Проверка списка FAQ')
+class TestQuestions:
 
-    actual = find_answer(expected['question'])
-    assert actual is not None, "Ответ на этот вопрос не найден"
-    assert expected['question'] == actual['question'], 'Вопрос отличается от ожидаемого'
-    assert expected['answer'] == actual['answer'], 'Ответ отличается от ожидаемого'
+    @allure.title('Инициализируем драйвер')
+    @pytest.fixture(scope='class', autouse=True)
+    def setup_and_teardown(self):
 
+        firefox_option = webdriver.FirefoxOptions()
+        firefox_option.add_argument("-headless")
+        self.driver = webdriver.Firefox(options=firefox_option)
+        self.driver.implicitly_wait(1)
 
-def find_answer(question: str):
-    for item in items:
-        if item['question'] == question:
-            return item
-    return None
+        yield self.driver
+        self.driver.quit()
+
+    @allure.step('Подготавливаем данные для тестирования')
+    @allure.title('Подготовка данных')
+    @pytest.mark.dependency()
+    @pytest.fixture(scope='class')
+    def get_faq(self):
+
+        index = IndexPage(self.driver)
+        index.open_index_page()
+
+        cookies = Cookies(self.driver)
+        cookies.get_cookies()
+
+        faq = FaqQuestions(self.driver)
+        faq.scroll_to_header()
+        pytest.shared = faq.get_faq()
+
+    @allure.testcase('TestCase-112')
+    @allure.title('Проверка вопроса FAQ')
+    @allure.description('Проверяем вопросы и ответы на соответствие ожидаемым')
+    @allure.step('Сравниваем ожидаемые и актуальные данные')
+    @pytest.mark.usefixtures('get_faq')
+    @pytest.mark.dependency(depends=["TestQuestions::get_faq"])
+    def test_questions(self, expected):
+
+        actual = self.find_answer(expected['question'])
+        assert actual is not None, "Ответ на этот вопрос не найден"
+        assert expected['question'] == actual['question'], 'Вопрос отличается от ожидаемого'
+        assert expected['answer'] == actual['answer'], 'Ответ отличается от ожидаемого'
+
+    def find_answer(self, expected):
+        for item in pytest.shared:
+            if item['question'] == expected:
+                return item
+        return None
