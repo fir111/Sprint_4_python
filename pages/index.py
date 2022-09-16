@@ -63,6 +63,15 @@ class FaqQuestions:
     def get_questions(self):
         return self.driver.find_elements(*self.questions)
 
+    @allure.step('Получаем пункт FAQ по вопросу')
+    def get_faq_by_question(self, question):
+        try:
+            return self.driver.find_element(By.XPATH,
+                                            f'//*[@class="accordion__button" and text()='
+                                            f'"{question}"]/parent::*/parent::*')
+        except AttributeError:
+            return None
+
     @allure.step('Ищем кнопку в пункте FAQ')
     def get_question_button(self, question):
         return question.find_element(*self.question_button)
@@ -74,17 +83,6 @@ class FaqQuestions:
     def get_answer(self, question):
         answer = question.find_element(*self.answer)
         return answer.find_element(By.XPATH, './/p').text
-
-    @allure.step('Сохраняем данные списка FAQ')
-    def get_faq(self):
-        questions = self.get_questions()
-        for question in questions:
-            self.click_question_button(question)
-            self.driver.implicitly_wait(1)
-            question_text, answer_text = question.text.split('\n')
-            self.faq_items.append({'question': question_text, 'answer': answer_text})
-
-        return self.faq_items
 
 
 class IndexPage:

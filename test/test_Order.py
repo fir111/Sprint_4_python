@@ -1,7 +1,6 @@
 import allure
 import pytest
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait as Wait
 from selenium.webdriver.support import expected_conditions as ec
 from pages.index import Cookies, OrderButton, IndexPage
@@ -128,6 +127,6 @@ class TestOrder:
                 break
 
         self.driver.switch_to.window(new_window)
-        self.wait.until(ec.visibility_of_element_located((By.XPATH, '//h2[text()="Новый портал dzen.ru"]')))
+        self.wait.until(ec.url_to_be('https://dzen.ru/?yredirect=true'))
 
         assert self.driver.title == 'Дзен', 'Переключение не на окно Yandex'

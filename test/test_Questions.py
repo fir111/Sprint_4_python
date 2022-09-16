@@ -1,6 +1,7 @@
 import pytest
 import allure
 from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait as Wait
 from pages.index import FaqQuestions, Cookies, IndexPage
 
 questions = [
@@ -42,47 +43,34 @@ class TestQuestions:
 
     @allure.title('Инициализируем драйвер')
     @pytest.fixture(scope='class', autouse=True)
-    def setup_and_teardown(self):
+    def setup_and_teardown(self, request):
 
         firefox_option = webdriver.FirefoxOptions()
-        firefox_option.add_argument("-headless")
-        self.driver = webdriver.Firefox(options=firefox_option)
-        self.driver.implicitly_wait(1)
+        #firefox_option.add_argument("-headless")
+        driver = webdriver.Firefox(options=firefox_option)
+        driver.implicitly_wait(1)
 
-        yield self.driver
-        self.driver.quit()
+        IndexPage(driver).open_index_page()
+        Cookies(driver).get_cookies()
+        FaqQuestions(driver).scroll_to_header()
+        request.cls.driver = driver
 
-    @allure.step('Подготавливаем данные для тестирования')
-    @allure.title('Подготовка данных')
-    @pytest.mark.dependency()
-    @pytest.fixture(scope='class')
-    def get_faq(self):
+        yield driver
+        driver.quit()
 
-        index = IndexPage(self.driver)
-        index.open_index_page()
-
-        cookies = Cookies(self.driver)
-        cookies.get_cookies()
-
-        faq = FaqQuestions(self.driver)
-        faq.scroll_to_header()
-        pytest.shared = faq.get_faq()
-
-    @allure.testcase('TestCase-112')
     @allure.title('Проверка вопроса FAQ')
     @allure.description('Проверяем вопросы и ответы на соответствие ожидаемым')
     @allure.step('Сравниваем ожидаемые и актуальные данные')
-    @pytest.mark.usefixtures('get_faq')
-    @pytest.mark.dependency(depends=["TestQuestions::get_faq"])
-    def test_questions(self, expected):
+    def test_faq_items_are_equal_expected(self, request, expected):
 
-        actual = self.find_answer(expected['question'])
-        assert actual is not None, "Ответ на этот вопрос не найден"
-        assert expected['question'] == actual['question'], 'Вопрос отличается от ожидаемого'
-        assert expected['answer'] == actual['answer'], 'Ответ отличается от ожидаемого'
+        driver = request.cls.driver
+        question = expected['question']
 
-    def find_answer(self, expected):
-        for item in pytest.shared:
-            if item['question'] == expected:
-                return item
-        return None
+        faq = FaqQuestions(driver)
+        question_container = faq.get_faq_by_question(question)
+        faq.click_question_button(question_container)
+        answer = faq.get_answer(question_container)
+
+        assert question_container is not None, f"Вопрос {question} не найден"
+        assert answer == expected['answer']
+
