@@ -2,3 +2,6 @@
 Sprint_4.iml
 .pytest_cache
 __pycache__/
+.DS_Store
+test/.DS_Store
+test/geckodriver.log
